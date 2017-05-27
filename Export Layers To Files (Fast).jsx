@@ -1,3 +1,81 @@
+﻿/*Instructions for using crop metadata example: 
+*   -select trim in export dialog
+*   -deselect "allow spaces" in export dialog
+*   -select PNG24 format in export dialog
+*   -image becomes cropped when whole pixel margins are fully transparent
+*/
+/* ADDED METADATA FUNCTIONALITY */
+
+if (ExternalObject.AdobeXMPScript == undefined) {
+    ExternalObject.AdobeXMPScript = new
+    ExternalObject('lib:AdobeXMPScript');
+} 
+
+
+function MyMetadata () {}
+
+MyMetadata.prototype.prepareLayer = function (layer) {
+    
+    //Get layer offset to save as XMP before each crop                    
+    this.cropX1 = layer.bounds[0].as("px");
+    this.cropY1 = layer.bounds[1].as("px");
+    this.cropX2 = layer.bounds[2].as("px");
+    this.cropY2 = layer.bounds[3].as("px");
+    this.width = app.activeDocument.width.as("px");
+    this.height = app.activeDocument.height.as("px");
+    
+    this.myTags = [
+        ["offsetX1", this.cropX1],
+        ["offsetY1", this.cropY1],
+        ["offsetX2", this.cropX2],
+        ["offsetY2", this.cropY2],
+        ["originalHeight", this.height],
+        ["originalWidth", this.width]
+    ];
+}
+MyMetadata.prototype.addMetadata = function (layer, fileName) {
+     
+        var meta = new XMPMeta();
+        
+        //test explanation: CreatorTool is specified in XMP namespace (along with CreateDate, ModifyDate)
+        meta.setProperty(XMPConst.NS_XMP, "CreatorTool", app.version); 
+        
+        //Custom namespace config:
+        var namespaceURI = "http://www.test.org/xmpNamespace/1.0";
+        var prefix = "testns:";
+        
+        //Set metadata using custom namespace:
+        XMPMeta.registerNamespace(namespaceURI, prefix);
+        for( var i = 0; i < this.myTags.length; i++) {
+            meta.setProperty(namespaceURI, this.myTags[i][0], this.myTags[i][1]);
+        }
+        
+        //Update the to-be-exported File
+        var imgFile = new File(fileName); 
+        saveImage(fileName);
+        
+        try {
+            var metaFile = new XMPFile(imgFile.fsName, XMPConst.FILE_UNKNOWN, XMPConst.OPEN_FOR_UPDATE); 
+            if (metaFile.canPutXMP(meta)) { metaFile.putXMP(meta); }
+            metaFile.closeFile(XMPConst.CLOSE_UPDATE_SAFELY);
+        } catch (e) { alert(e.message); }
+            
+    /* Unused conditionals:
+    if(layer.name == "my layer") { // addMetadata code here
+    
+         //Update the to-be-exported File
+        var parentFolder = (new File(fileName)).parent;
+         if(fileName == parentFolder+"/"+"my_layer.png") {
+         }
+    }
+    else { saveImage(fileName); }
+     */
+}
+
+var myMetadata = new MyMetadata ();
+
+/* END METADATA FUNCTIONALITY */
+
 // NAME:
 // 	Export Layers To Files
 
@@ -138,7 +216,6 @@ var DEFAULT_SETTINGS = {
 	allowSpaces: app.stringIDToTypeID("allowSpaces"),
 	letterCase:	app.stringIDToTypeID("letterCase"),
 	outputPrefix: app.stringIDToTypeID("outputPrefix"),
-	outputSuffix: app.stringIDToTypeID("outputSuffix"),
 	trim: app.stringIDToTypeID("trim"),
 	exportBackground: app.stringIDToTypeID("exportBackground"),
 	fileType: app.stringIDToTypeID("fileType"),
@@ -189,7 +266,6 @@ function main()
 	prefs.formatArgs = null;
 	prefs.exportLayerTarget = ExportLayerTarget.ALL_LAYERS;
 	prefs.outputPrefix = "";
-	prefs.outputSuffix = "";
 	prefs.naming = FileNameType.AS_LAYERS_NO_EXT;
 	prefs.namingLetterCase = LetterCase.KEEP;
 	prefs.replaceSpaces = true;
@@ -404,9 +480,14 @@ function exportLayers(exportLayerTarget, progressBarWindow)
 				break;
 			}
 
-			if (fileName) {
+			if (fileName) {             
+                
 				if ((prefs.trim != TrimPrefType.INDIVIDUAL) || ((layer.bounds[0] < layer.bounds[2]) && ((layer.bounds[1] < layer.bounds[3])))) { // skip empty layers when trimming
-					makeVisible(layersToExport[i]);
+					makeVisible(layersToExport[i]); 
+                    
+                        //ADDED Metadata code
+                        myMetadata.prepareLayer(layer);
+                        //END Metadata code
 
 					if (prefs.trim == TrimPrefType.INDIVIDUAL) {
 						var useTrim = prefs.forceTrimMethod;
@@ -414,6 +495,7 @@ function exportLayers(exportLayerTarget, progressBarWindow)
 						if (!useTrim) {
 							try {
 								doc.crop(layer.bounds);
+                                    
 							}
 							catch (e) {
 								useTrim = true;
@@ -426,14 +508,19 @@ function exportLayers(exportLayerTarget, progressBarWindow)
 					}
 
 					var folderSafe = true;
+
 					if (prefs.groupsAsFolders) {
-						var parentFolder = (new File(fileName)).parent;
+						parentFolder = (new File(fileName)).parent;
 						folderSafe = createFolder(parentFolder);
 						retVal.error = (retVal.error || !folderSafe);
 					}
 
 					if (folderSafe) {
-						saveImage(fileName);
+                        
+                            //ADDED Metadata code
+                            myMetadata.addMetadata(layer, fileName);
+                            //END Metadata code
+                                
 						++retVal.count;
 					}
 
@@ -623,12 +710,11 @@ function makeFileNameFromLayerName(layer, stripExt)
 function getUniqueFileName(fileName, layer)
 {
 	var ext = prefs.fileExtension;
-	// makeValidFileName() here basically just converts the space between the prefix, the core file name and suffix,
+	// makeValidFileName() here basically just converts the space between the prefix and the core file name,
 	// but it's a good idea to keep file naming conventions in one place, i.e. inside makeValidFileName(),
 	// and rely on them exclusively.
 	var outputPrefix = prefs.groupsAsFolders ? "" : prefs.outputPrefix;
-	var outputSuffix = prefs.groupsAsFolders ? "" : prefs.outputSuffix;
-	fileName = makeValidFileName(outputPrefix + fileName + outputSuffix, prefs.replaceSpaces);
+	fileName = makeValidFileName(outputPrefix + fileName, prefs.replaceSpaces);
 	if (prefs.namingLetterCase == LetterCase.LOWERCASE) {
 		fileName = fileName.toLowerCase();
 		ext = ext.toLowerCase();
@@ -909,15 +995,9 @@ function showDialog()
 		this.text = makeValidFileName(this.text, prefs.replaceSpaces);
 	};
 
-	// file name suffix
-	dlg.funcArea.content.grpPrefix.editSuffix.onChange = function() {
-		this.text = makeValidFileName(this.text, prefs.replaceSpaces);
-	};
-
-	dlg.funcArea.content.grpFolderTree.cbFolderTree.onClick = function()
+	dlg.funcArea.content.grpPrefix.cbFolderTree.onClick = function()
 	{
 		dlg.funcArea.content.grpPrefix.editPrefix.enabled = !this.value;
-		dlg.funcArea.content.grpPrefix.editSuffix.enabled = !this.value;
 	};
 
 	// file naming options
@@ -953,12 +1033,7 @@ function showDialog()
 			prefs.outputPrefix += " ";
 		}
 
-		prefs.outputSuffix = dlg.funcArea.content.grpPrefix.editSuffix.text;
-		if (prefs.outputSuffix.length > 0) {
-			prefs.outputSuffix = " " + prefs.outputSuffix;
-		}
-
-		prefs.groupsAsFolders = dlg.funcArea.content.grpFolderTree.cbFolderTree.value;
+		prefs.groupsAsFolders = dlg.funcArea.content.grpPrefix.cbFolderTree.value;
 
 		prefs.naming = FileNameType.forIndex(dlg.funcArea.content.grpNaming.drdNaming.selection.index);
 		prefs.namingLetterCase = LetterCase.forIndex(dlg.funcArea.content.grpLetterCase.drdLetterCase.selection.index);
@@ -1049,12 +1124,9 @@ function applySettings(dlg, formatOpts)
 
 		grpPrefix.editPrefix.text = settings.outputPrefix;
 		grpPrefix.editPrefix.notify("onChange");
-		if (grpFolderTree.cbFolderTree.value != settings.groupsAsFolders) {
-			grpFolderTree.cbFolderTree.notify();
+		if (grpPrefix.cbFolderTree.value != settings.groupsAsFolders) {
+			grpPrefix.cbFolderTree.notify();
 		}
-
-		grpPrefix.editSuffix.text = settings.outputSuffix;
-		grpPrefix.editSuffix.notify("onChange");
 
 		var drdTrimIdx = TrimPrefType.getIndex(settings.trim);
 		grpTrim.drdTrim.selection = (drdTrimIdx >= 0) ? drdTrimIdx : 0;
@@ -1101,14 +1173,13 @@ function saveSettings(dlg, formatOpts)
 		}
 
 		desc.putString(DEFAULT_SETTINGS.destination, grpDest.txtDest.text);
-		desc.putBoolean(DEFAULT_SETTINGS.overwrite, dlg.funcArea.buttons.cbOverwrite.value);
+	desc.putBoolean(DEFAULT_SETTINGS.overwrite, dlg.funcArea.buttons.cbOverwrite.value);
 		desc.putInteger(DEFAULT_SETTINGS.exportLayerTarget, exportLayerTarget);
 		desc.putInteger(DEFAULT_SETTINGS.nameFiles, FileNameType.forIndex(grpNaming.drdNaming.selection.index));
 		desc.putBoolean(DEFAULT_SETTINGS.allowSpaces, grpNaming.cbNaming.value);
 		desc.putInteger(DEFAULT_SETTINGS.letterCase, LetterCase.forIndex(grpLetterCase.drdLetterCase.selection.index));
 		desc.putString(DEFAULT_SETTINGS.outputPrefix, grpPrefix.editPrefix.text);
-		desc.putBoolean(DEFAULT_SETTINGS.groupsAsFolders, grpFolderTree.cbFolderTree.value);
-		desc.putString(DEFAULT_SETTINGS.outputSuffix, grpPrefix.editSuffix.text);
+		desc.putBoolean(DEFAULT_SETTINGS.groupsAsFolders, grpPrefix.cbFolderTree.value);
 		desc.putInteger(DEFAULT_SETTINGS.trim, TrimPrefType.forIndex(grpTrim.drdTrim.selection.index));
 		desc.putBoolean(DEFAULT_SETTINGS.exportBackground, cbBgLayer.value);
 		desc.putString(DEFAULT_SETTINGS.fileType, formatOpts[grpFileType.drdFileType.selection.index].opt.type);
@@ -1150,7 +1221,6 @@ function getSettings(formatOpts)
 			letterCase: desc.getInteger(DEFAULT_SETTINGS.letterCase),
 			outputPrefix: desc.getString(DEFAULT_SETTINGS.outputPrefix),
 			groupsAsFolders: desc.getBoolean(DEFAULT_SETTINGS.groupsAsFolders),
-			outputSuffix: desc.getString(DEFAULT_SETTINGS.outputSuffix),
 			trim: desc.getInteger(DEFAULT_SETTINGS.trim),
 			exportBackground: desc.getBoolean(DEFAULT_SETTINGS.exportBackground),
 			fileType: desc.getString(DEFAULT_SETTINGS.fileType),
@@ -1179,7 +1249,7 @@ function getSettings(formatOpts)
 function getFormatOptsTarga()
 {
 	return {
-		type: "TGA",
+		type: "TGA (unsupported)",
 
 		// Dialog GUI
 		dialogParams: function (parent)
@@ -1247,7 +1317,7 @@ function getFormatOptsTarga()
 function getFormatOptsJPEG()
 {
 	return {
-		type: "JPG",
+		type: "JPG (unsupported)",
 
 		// Dialog GUI
 		dialogParams: function (parent)
@@ -1461,7 +1531,7 @@ function getFormatOptsPNG24()
 function getFormatOptsPNG8()
 {
 	return {
-		type: "PNG-8",
+		type: "PNG-8 (unsupported)",
 
 		// Dialog GUI
 		dialogParams: function (parent)
@@ -1713,7 +1783,7 @@ function getFormatOptsPNG8()
 function getFormatOptsBMP()
 {
 	return {
-		type: "BMP",
+		type: "BMP (unsupported)",
 
 		// Dialog GUI
 		dialogParams: function (parent)
@@ -2352,7 +2422,7 @@ function exportPng8AM(fileName, options)
 		break;
 
 	default:
-		throw new Error("Unknown transparency dither algorithm. Cannot export PNG-8!");
+		throw new Error("Unknown transparency dither algorithm. Cannot export a!");
 	}
 	desc4.putEnumerated( id30, id31, id32 );
 	var id33 = app.charIDToTypeID( "TDtA" );
