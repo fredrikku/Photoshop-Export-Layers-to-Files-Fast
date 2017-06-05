@@ -13,7 +13,7 @@ Example:
 -------------------------------
 When exporting layers that are free floating in a larger image or composition, you may want to trim (crop) each layer for optimization, and then be able to restore the composition in later application. The current master branch of this fork does that. After exporting image layers, the XMP metadata can be viewed from Adobe Bridge (by selecting exported image, then File -> File info..., and then switch to Raw data-tab):<br>
 ![screenshot of XMP metadata](test_layer.png) <br>
-As you can see, there is a custom namespace called "testns" with tags "OffsetX1","OffsetY1", "originalHeight" and so on. Their values actually correspond to the image itself, which was cropped out from a screenshot. You can also check out the metadata by downloading this screenshot and inspect it using Bridge or another application. 
+As you can see, there is a custom namespace called "testns" with tags "OffsetX1","OffsetY1", "originalHeight" and so on. Similarly, the xmp embedded in this screenshot iself actually has its correct offset dimensions and original screen resolution. 
 
 How To Run the Script:
 -------------------------------
