@@ -1,7 +1,7 @@
 Photoshop-Export-Layers-to-Files-Fast - with custom XMP metadata
 =================================
 
-[upstream repo](https://github.com/jwa107/Photoshop-Export-Layers-to-Files-Fast/): 
+[Description from forked repo](https://github.com/jwa107/Photoshop-Export-Layers-to-Files-Fast/): 
 ><b>This script allows you to export layers in your Photoshop document as individual files</b> at a speed much faster than the built-in script from Adobe. 
 
 Why did I make this fork:
